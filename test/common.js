@@ -8,6 +8,7 @@ var mongoose = require('mongoose')
 process.env.NODE_ENV = 'test';
 
 function setup(uri, callback) {
+  mongoose.set('debug', true);
   mongoose.connect(uri);
   mongoose.connection.on('err', function () {
     callback(new Error("connection error"));
@@ -36,15 +37,18 @@ function loadFixtures(callback) {
     if (err) return callback(err);
 
     var permissions = [
-        { subject: 'Post', action: 'create' },
-        { subject: 'Post', action: 'read' },
-        { subject: 'Post', action: 'update' },
-        { subject: 'Post', action: 'delete' },
-        { subject: 'Comment', action: 'create' },
-        { subject: 'Comment', action: 'read' },
-        { subject: 'Comment', action: 'update' },
-        { subject: 'Comment', action: 'delete' }
-      ];
+      'create@Post',
+      'read@Post',
+      'update@Post',
+      'delete@Post',
+      'create@Comment',
+      'read@Comment',
+      'update@Comment',
+      'delete@Comment',
+      'read@Foo'
+    ].map(function (item) {
+        return { name: item };
+      });
 
     var user = new User({ username: 'henry' });
     user.save();
@@ -52,17 +56,21 @@ function loadFixtures(callback) {
     Permission.create(permissions, function (err) {
       if (err) return callback(err);
 
-      var perms, admin, readonly;
+      var perms, admin, readonly, guest;
 
       perms = Array.prototype.slice.call(arguments, 1);
       admin = new Role({ name: 'admin' });
-      admin.permissions = perms;
+      admin.permissions = perms.slice(0,-1);
       admin.save(function (err) {
         if (err) return callback(err);
         readonly = new Role({ name: 'readonly' });
-        readonly.permissions = [perms[1], perms[5]];
+        readonly.permissions = [perms[1], perms[5], perms[8]];
         readonly.save(function (err) {
-          callback(err);
+          if (err) return callback(err);
+          guest = new Role({name: 'guest'});
+          guest.save(function (err) {
+            callback(err);
+          });
         });
       });
     });
