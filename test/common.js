@@ -60,11 +60,11 @@ function loadFixtures(callback) {
 
       perms = Array.prototype.slice.call(arguments, 1);
       admin = new Role({ name: 'admin' });
-      admin.permissions = perms.slice(0,-1);
+      admin.permissions = perms.slice(0,-1).map(mapPermission);
       admin.save(function (err) {
         if (err) return callback(err);
         readonly = new Role({ name: 'readonly' });
-        readonly.permissions = [perms[1], perms[5], perms[8]];
+        readonly.permissions = [perms[1], perms[5], perms[8]].map(mapPermission);
         readonly.save(function (err) {
           if (err) return callback(err);
           guest = new Role({name: 'guest'});
@@ -75,6 +75,12 @@ function loadFixtures(callback) {
       });
     });
   });
+
+  function mapPermission(p) {
+    return {
+      permission: p
+    };
+  }
 }
 
 UserSchema = mongoose.Schema({ username: String });

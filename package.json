@@ -21,12 +21,17 @@
   ],
   "dependencies": {
     "mongoose": "~3.8.x",
-    "async": "~0.2.6"
+    "async": "~0.2.6",
+    "rus-diff": "0.0.8",
+    "node.extend": "^1.0.10",
+    "mongoose-function": "^0.1.0"
   },
   "devDependencies": {
     "mocha": "~1.8.1",
     "chai": "~1.6.1",
-    "jshint": "~2.4.4"
+    "jshint": "~2.4.4",
+    "underscore": "^1.6.0",
+    "chai-fuzzy": "^1.4.0"
   },
   "license": "MIT"
 }
