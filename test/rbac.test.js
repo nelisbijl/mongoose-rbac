@@ -4,6 +4,7 @@ var chai = require('chai')
   , expect = chai.expect
   , rbac = require('../')
   , common = require('./common')
+  , step = require('step')
   , Role = rbac.Role
   , Permission = rbac.Permission
   , User = common.User;
@@ -398,7 +399,7 @@ describe('roles and permissions:', function () {
         guest.addPermission('read@Post', { a: 'A' }, function (err, obj) {
           expect(err).to.not.exist;
           expect(guest.permissions).to.have.length(1);
-          expect(obj.permissions[0].settings).to.be.like({a:'A'});
+          expect(obj.permissions[0].settings).to.be.like({a: 'A'});
           guest.addPermission('read@Post', function (err, obj) {
             expect(err).to.not.exist;
             expect(guest.permissions).to.have.length(2);
@@ -468,23 +469,23 @@ describe('roles and permissions:', function () {
         });
       });
 
-      it('should remove a role from a role with the correct decoration', function (done) {
-        var pA, pB, p, pFn;
+      it('should remove a permission from a role with the correct decoration', function (done) {
         var fn = function (opts) {
           return { a: opts.a };
         };
+        var pA, pB, p, pFn;
         guest.addPermission('read@Post', { a: 'A' }, function (err) {
           expect(err).to.not.exist;
-          pA = henry.permissions[0];
+          pA = guest.permissions[0];
           guest.addPermission('read@Post', function (err) {
             expect(err).to.not.exist;
-            p = henry.permissions[1];
+            p = guest.permissions[1];
             guest.addPermission('read@Post', { a: 'B' }, function (err) {
               expect(err).to.not.exist;
-              pB = henry.permissions[2];
+              pB = guest.permissions[2];
               guest.addPermission('read@Post', fn, function (err) {
                 expect(err).to.not.exist;
-                pFn = henry.permissions[3];
+                pFn = guest.permissions[3];
                 guest.removePermission('read@Post', { a: 'B' }, function (err) {
                   expect(err).to.not.exist;
                   expect(guest.permissions.length).to.equal(3);
@@ -779,7 +780,7 @@ describe('roles and permissions:', function () {
         henry.addPermission('read@Post', { a: 'A' }, function (err, obj) {
           expect(err).to.not.exist;
           expect(henry.permissions).to.have.length(1);
-          expect(obj.permissions[0].settings).to.be.like({a : 'A'});
+          expect(obj.permissions[0].settings).to.be.like({a: 'A'});
           henry.addPermission('read@Post', function (err, obj) {
             expect(err).to.not.exist;
             expect(henry.permissions).to.have.length(2);
@@ -787,7 +788,7 @@ describe('roles and permissions:', function () {
             henry.addPermission('read@Post', { a: 'B' }, function (err, obj) {
               expect(err).to.not.exist;
               expect(henry.permissions).to.have.length(3);
-              expect(obj.permissions[2].settings).to.be.like({a : 'B'});
+              expect(obj.permissions[2].settings).to.be.like({a: 'B'});
               Permission.find({ name: 'read@Post' }, function (err, permissions) {
                 expect(err).to.not.exist;
                 expect(permissions).to.exist;
@@ -901,6 +902,79 @@ describe('roles and permissions:', function () {
           });
         });
       });
+
+      it('should return user permissions (not by role)', function (done) {
+        henry.addPermission('read@Foo', function (err) {
+          expect(err).to.not.exist;
+          henry.can('read@Foo', function (err, canRead, decorations) {
+            expect(err).to.not.exist;
+            expect(canRead).to.equal(true);
+            expect(decorations).to.exist;
+            expect(decorations.length).to.equal(1);
+            expect(decorations[0]).to.be.like({});
+            done();
+          });
+        });
+      });
+
+      it('should return multiple decorations when available', function (done) {
+        henry.addPermission('read@Foo', function (err) {
+          expect(err).to.not.exist;
+          henry.addPermission('read@Foo', {a: 'A'}, function (err) {
+            expect(err).to.not.exist;
+            henry.can('read@Foo', function (err, canRead, decorations) {
+              expect(err).to.not.exist;
+              expect(canRead).to.equal(true);
+              expect(decorations).to.exist;
+              expect(decorations.length).to.equal(2);
+              expect(decorations[0]).to.be.like({});
+              expect(decorations[1]).to.be.like({a: 'A'});
+              done();
+            });
+          });
+        });
+      });
+
+      it('should return multiple decorations when available in different roles', function (done) {
+        henry.addRole('admin', function (err) {
+          expect(err).to.not.exist;
+          henry.addPermission('read@Post', {a: 'A'}, function (err) {
+            expect(err).to.not.exist;
+            henry.can('read@Post', function (err, canRead, decorations) {
+              expect(err).to.not.exist;
+              expect(canRead).to.equal(true);
+              expect(decorations).to.exist;
+              expect(decorations.length).to.equal(2);
+              expect(decorations[0]).to.be.like({a: 'A'});
+              expect(decorations[1]).to.be.like({});
+              done();
+            });
+          });
+        });
+      });
+
+      it('should resolve templated decorations', function (done) {
+        henry.addRole('admin', {a:'A'}, function (err) {
+          expect(err).to.not.exist;
+          var fnGuest = function (opts) { return { b: opts.a }; };
+          admin.addRole('guest', fnGuest, function (err) {
+            expect(err).to.not.exist;
+            var fnReadFoo = function (opts) { return { c: opts.b }; };
+            guest.addPermission('read@Foo', fnReadFoo, function (err) {
+              expect(err).to.not.exist;
+              henry.can('read@Foo', function (err, canRead, decorations) {
+                expect(err).to.not.exist;
+                expect(canRead).to.equal(true);
+                expect(decorations).to.exist;
+                expect(decorations.length).to.equal(1);
+                expect(decorations[0]).to.be.like({c: 'A'});
+                done();
+              });
+            });
+          });
+        });
+      });
+
     });
 
     describe('canAll', function () {
@@ -920,6 +994,49 @@ describe('roles and permissions:', function () {
               expect(err).to.not.exist;
               expect(canReadAndCreate).to.equal(false);
               next();
+            });
+          });
+        });
+      });
+
+      it('should indicate whether a model has all of a given set of permissions even when in different roles', function (next) {
+        henry.addRole('readonly', function (err) {
+          expect(err).to.not.exist;
+          henry.addRole('guest', function (err) {
+            expect(err).to.not.exist;
+            guest.addPermission('read@Foo', function (err) {
+              expect(err).to.not.exist;
+              henry.canAll([
+                'read@Post',
+                'read@Foo'
+              ], function (err, canRead) {
+                expect(err).to.not.exist;
+                expect(canRead).to.equal(true);
+                next();
+              });
+            });
+          });
+        });
+      });
+
+      it('should merge permission decorationss', function (next) {
+        henry.addRole('readonly', function (err) {
+          expect(err).to.not.exist;
+          henry.addRole('guest', function (err) {
+            expect(err).to.not.exist;
+            guest.addPermission('read@Post', {a: 'A'}, function (err) {
+              expect(err).to.not.exist;
+              henry.canAll([
+                'read@Post',
+                'read@Comment'
+              ], function (err, canRead, permissions) {
+                expect(err).to.not.exist;
+                expect(canRead).to.equal(true);
+                expect(permissions).to.exist;
+                expect(permissions['read@Post'].length).to.equal(2);
+                expect(permissions['read@Comment'].length).to.equal(1);
+                next();
+              });
             });
           });
         });
@@ -949,7 +1066,7 @@ describe('roles and permissions:', function () {
                   expect(canReadAndCreate).to.equal(false);
                   expect(permissions).to.exist;
                   expect(permissions['read@Post'].length).to.equal(1);
-                  expect(permissions['create@Post'].length).to.equal(0);
+                  expect(permissions['create@Post']).to.not.exist;
                   done();
                 });
               });
@@ -989,7 +1106,7 @@ describe('roles and permissions:', function () {
                 expect(canReadOrCreate).to.equal(true);
                 expect(permissions).to.exist;
                 expect(permissions['read@Post'].length).to.equal(1);
-                expect(permissions['create@Post'].length).to.equal(0);
+                expect(permissions['create@Post']).to.not.exist;
                 done();
               });
             });
@@ -997,7 +1114,7 @@ describe('roles and permissions:', function () {
         });
       });
 
-      it('should return permissions only for the first encountered role', function (done) {
+      it('should return first encountered permission only', function (done) {
         admin.addRole('readonly', function (err) {
           expect(err).to.not.exist;
           henry.addRole('admin', function (err) {
@@ -1010,9 +1127,9 @@ describe('roles and permissions:', function () {
               expect(err).to.not.exist;
               expect(canReadOrCreate).to.equal(true);
               expect(permissions).to.exist;
-              expect(permissions['create@Post'].length).to.equal(0);
-              expect(permissions['read@Post'].length).to.equal(1);
-              expect(permissions['read@Foo'].length).to.equal(1);
+              expect(permissions['create@Post'].length).to.equal(1);
+              expect(permissions['read@Post']).not.to.exist;
+              expect(permissions['read@Foo']).not.to.exist;
               done();
             });
           });

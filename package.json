@@ -31,7 +31,8 @@
     "chai": "~1.6.1",
     "jshint": "~2.4.4",
     "underscore": "^1.6.0",
-    "chai-fuzzy": "^1.4.0"
+    "chai-fuzzy": "^1.4.0",
+    "step": "0.0.5"
   },
   "license": "MIT"
 }

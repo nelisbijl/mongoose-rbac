@@ -2,6 +2,8 @@ var mongoose = require('mongoose')
   , rbac = require('../')
   , Permission = rbac.Permission
   , Role = rbac.Role
+  , ContactSchema
+  , Contact
   , UserSchema
   , User;
 
@@ -83,11 +85,35 @@ function loadFixtures(callback) {
   }
 }
 
+
+//clubadmin
+//  crud@Contacts {club: opts.club }
+//
+//annemieke
+//  clubadmin: { club: 'Excelsior' }
+//  read@Clubs
+//
+//jesper
+//  clubadmin: { club: 'Avanti' }
+//
+//Contacts
+//  name club
+//
+//  piet Excelsior
+//  leen Excelsior
+//
+//  robert Avanti
+//  chantal Avanti
+
 UserSchema = mongoose.Schema({ username: String });
 UserSchema.plugin(rbac.plugin);
 User = mongoose.model('User', UserSchema);
 
+ContactSchema = mongoose.Schema({ name: String, club: String }),
+Contact = mongoose.model('Contact', ContactSchema);
+
 module.exports.User = User;
+module.exports.Contact = Contact;
 module.exports.setup = setup;
 module.exports.empty = empty;
 module.exports.reset = reset;
