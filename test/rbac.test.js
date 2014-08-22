@@ -7,7 +7,8 @@ var chai = require('chai')
   , step = require('step')
   , Role = rbac.Role
   , Permission = rbac.Permission
-  , User = common.User;
+  , User = common.User
+  , Contact = common.Contact;
 
 chai.use(require('chai-fuzzy'));
 
@@ -954,12 +955,16 @@ describe('roles and permissions:', function () {
       });
 
       it('should resolve templated decorations', function (done) {
-        henry.addRole('admin', {a:'A'}, function (err) {
+        henry.addRole('admin', {a: 'A'}, function (err) {
           expect(err).to.not.exist;
-          var fnGuest = function (opts) { return { b: opts.a }; };
+          var fnGuest = function (opts) {
+            return { b: opts.a };
+          };
           admin.addRole('guest', fnGuest, function (err) {
             expect(err).to.not.exist;
-            var fnReadFoo = function (opts) { return { c: opts.b }; };
+            var fnReadFoo = function (opts) {
+              return { c: opts.b };
+            };
             guest.addPermission('read@Foo', fnReadFoo, function (err) {
               expect(err).to.not.exist;
               henry.can('read@Foo', function (err, canRead, decorations) {
@@ -1178,6 +1183,1014 @@ describe('roles and permissions:', function () {
     });
   });
 
+  describe('acl', function () {
+    before(function () {
+    });
+
+    beforeEach(function (done) {
+      Contact.create([
+        { name: 'exc1', club: 'exc' },
+        { name: 'exc2', club: 'exc' },
+        { name: 'exc3', club: 'exc' },
+        { name: 'exc4', club: 'exc' },
+        { name: 'des1', club: 'des' },
+        { name: 'des2', club: 'des' },
+        { name: 'des2', club: 'des' },
+        { name: 'dkc1', club: 'dkc' },
+        { name: 'dkc2', club: 'dkc' }
+      ], function (err, contacts) {
+        done();
+      })
+
+    });
+
+    afterEach(function () {
+    });
+
+    after(function () {
+    });
+
+    describe('Model.aclCreate', function () {
+      it('should insert presets when none specified', function (done) {
+        var permissions = {
+          'create@Contact': [
+            {
+              presets: {
+                club: 'exc'
+              }
+            }
+          ]
+        };
+        Contact.aclCreate(permissions, {name: 'leen'}, function (err, contact) {
+          expect(err).to.not.exist;
+          expect(contact).to.exist;
+          expect(contact).to.have.property('club', 'exc');
+          done();
+        });
+      });
+
+      it('should allow presets when matching', function (done) {
+        var permissions = {
+          'create@Contact': [
+            {
+              presets: {
+                club: 'exc'
+              }
+            }
+          ]
+        };
+        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err, contact) {
+          expect(err).to.not.exist;
+          expect(contact).to.exist;
+          expect(contact).to.have.property('club', 'exc');
+          done();
+        });
+      });
+
+      it('should allow presets when some set is matching', function (done) {
+        var permissions = {
+          'create@Contact': [
+            {
+              presets: {
+                club: 'exc'
+              }
+            },
+            {
+              presets: {
+                club: 'dkc'
+              }
+            }
+          ]
+        };
+        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err, contact) {
+          expect(err).to.not.exist;
+          expect(contact).to.exist;
+          expect(contact).to.have.property('club', 'exc');
+          done();
+        });
+      });
+
+      it('should deny when presets not matching', function (done) {
+        var permissions = {
+          'create@Contact': [
+            {
+              presets: {
+                club: 'dkc'
+              }
+            }
+          ]
+        };
+        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err, contact) {
+          expect(err).to.exist;
+          expect(err).to.have.property('message', 'not authorized');
+          done();
+        });
+      });
+
+      it('should deny when all presets not matching', function (done) {
+        var permissions = {
+          'create@Contact': [
+            {
+              presets: {
+                club: 'dkc'
+              }
+            },
+            {
+              presets: {
+                club: 'des'
+              }
+            }
+          ]
+        };
+        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err, contact) {
+          expect(err).to.exist;
+          expect(err).to.have.property('message', 'not authorized');
+          done();
+        });
+      });
+
+      it('should deny all docs when any has presets not matching', function (done) {
+        var permissions = {
+          'create@Contact': [
+            {
+              presets: {
+                club: 'dkc'
+              }
+            }
+          ]
+        };
+        var piet = {name: 'piet', club: 'dkc'};
+        Contact.aclCreate(permissions, [
+          {name: 'leen', club: 'exc'},
+          piet
+        ], function (err, contact) {
+          expect(err).to.exist;
+          expect(err).to.have.property('message', 'not authorized');
+          Contact.findOne(piet, function (err, piet) {
+            expect(err).to.not.exist;
+            expect(piet).to.not.exist;
+            done();
+
+          });
+        });
+      });
+
+      describe('sub documents', function () {
+        it('should insert presets when none specified', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              }
+            ]
+          };
+          Contact.aclCreate(permissions, {name: 'leen'}, function (err, contact) {
+            expect(err).to.not.exist;
+            expect(contact).to.exist;
+            expect(contact).to.have.property('club', 'exc');
+            expect(contact).to.have.property('adres');
+            expect(contact.adres).to.have.property('plaats', 'Delft');
+            done();
+          });
+        });
+
+        it('should allow presets when matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              }
+            ]
+          };
+          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: { plaats: 'Delft'}}, function (err, contact) {
+            expect(err).to.not.exist;
+            expect(contact).to.exist;
+            expect(contact).to.have.property('club', 'exc');
+            expect(contact).to.have.property('adres');
+            expect(contact.adres).to.have.property('plaats', 'Delft');
+            done();
+          });
+        });
+
+        it('should allow presets when some set is matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              },
+              {
+                presets: {
+                  club: 'dkc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              }
+            ]
+          };
+          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: { plaats: 'Delft'}}, function (err, contact) {
+            expect(err).to.not.exist;
+            expect(contact).to.exist;
+            expect(contact).to.have.property('club', 'exc');
+            expect(contact).to.have.property('adres');
+            expect(contact.adres).to.have.property('plaats', 'Delft');
+            done();
+          });
+        });
+
+        it('should deny when presets not matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              }
+            ]
+          };
+          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}, function (err, contact) {
+            expect(err).to.exist;
+            expect(err).to.have.property('message', 'not authorized');
+            done();
+          });
+        });
+
+        it('should deny when all presets not matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              },
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Den Hoorn'
+                  }
+                }
+              }
+            ]
+          };
+          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: { plaats: 'Rijswijk'}}, function (err, contact) {
+            expect(err).to.exist;
+            expect(err).to.have.property('message', 'not authorized');
+            done();
+          });
+        });
+
+        it('should deny all docs when any has presets not matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc',
+                  adres: {
+                    plaats: 'Delft'
+                  }
+                }
+              }
+            ]
+          };
+          var piet = {name: 'piet', club: 'exc', adres: {plaats: 'Delft'}};
+          Contact.aclCreate(permissions, [
+            {name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'} },
+            piet
+          ], function (err, contact) {
+            expect(err).to.exist;
+            expect(err).to.have.property('message', 'not authorized');
+            Contact.findOne(piet, function (err, piet) {
+              expect(err).to.not.exist;
+              expect(piet).to.not.exist;
+              done();
+
+            });
+          });
+        });
+      });
+    });
+
+    describe('query.aclFilter', function () {
+      it('should filter query according to permission decoration', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            }
+          ]
+        };
+        Contact.find({}).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts.length).to.equal(4);
+          contacts.forEach(function (contact) {
+            expect(contact.name).to.match(/^exc/);
+          });
+          done();
+        });
+      });
+
+      it('should add to exiting filter', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            }
+          ]
+        };
+        Contact.find({ club: 'dkc' }).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts).to.exist.with.length(0);
+          done();
+        });
+      });
+
+      it('should add to exiting filter (2)', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            }
+          ]
+        };
+        Contact.find({ $and: [
+          {club: 'dkc' }
+        ] }).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts).to.exist.with.length(0);
+          done();
+        });
+      });
+
+      it('should add to exiting filter (3)', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            }
+          ]
+        };
+        Contact.find().aclFilter(permissions).where({ $and: [
+          {club: 'dkc' }
+        ] }).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts).to.exist.with.length(0);
+          done();
+        });
+      });
+
+      it('should combine decorations', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            },
+            {
+              conditions: {
+                club: 'des'
+              }
+            }
+          ]
+        };
+        Contact.find({}).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts.length).to.equal(7);
+          contacts.forEach(function (contact) {
+            expect(contact.name).to.match(/^(exc|des)/);
+          });
+          done();
+        });
+      });
+
+      it('should not filter when permission not specified', function (done) {
+        var permissions = {};
+        Contact.find({}).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts).to.exist.with.length(9);
+          done();
+        });
+      });
+
+      it('should not filter when one of the decorations specifies no conditions', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            },
+            {
+            }
+          ]
+        };
+        Contact.find({}).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts).to.exist.with.length(9);
+          done();
+        });
+      });
+
+      it('should not filter when one of the decorations specifies empty conditions', function (done) {
+        var permissions = {
+          'read@Contact': [
+            {
+              conditions: {
+                club: 'exc'
+              }
+            },
+            {
+              conditions: {}
+            }
+          ]
+        };
+        Contact.find({}).aclFilter(permissions).exec(function (err, contacts) {
+          expect(err).to.not.exist;
+          expect(contacts).to.exist.with.length(9);
+          done();
+        });
+      });
+    });
+
+    describe('Model.aclUpdate', function () {
+      it('should succeed if updates within filter conditions', function (done) {
+        var permissions = {
+          'update@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
+          Contact.aclUpdate(permissions, {_id: leen._id}, {'adres.postcode': '2612VG'}, function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(1);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              expect(leen).to.have.property('adres');
+              expect(leen.adres).to.have.property('postcode', '2612VG');
+              done();
+            });
+          });
+        });
+      });
+
+      it('should reject if updates outside filter conditions', function (done) {
+        var permissions = {
+          'update@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
+          Contact.aclUpdate(permissions, {_id: leen._id}, {'adres.postcode': '2612VG'}, function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(0);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              expect(leen).to.have.property('adres');
+              expect(leen.adres).not.to.have.property('postcode');
+              done();
+            });
+          });
+        });
+
+      });
+
+      it('should succeed if updates within filter conditions; no callback', function (done) {
+        var permissions = {
+          'update@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
+          Contact.aclUpdate(permissions, {_id: leen._id}, {'adres.postcode': '2612VG'}).exec(function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(1);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              expect(leen).to.have.property('adres');
+              expect(leen.adres).to.have.property('postcode', '2612VG');
+              done();
+            });
+          });
+        });
+      });
+
+      it('should reject if updates outside filter conditions; no callback', function (done) {
+        var permissions = {
+          'update@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
+          Contact.aclUpdate(permissions, {_id: leen._id}, {'adres.postcode': '2612VG'}).exec(function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(0);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              expect(leen).to.have.property('adres');
+              expect(leen.adres).not.to.have.property('postcode');
+              done();
+            });
+          });
+        });
+
+      });
+    });
+
+    describe('Model.aclRemove', function () {
+      it('should succeed removes within filter conditions', function (done) {
+        var permissions = {
+          'delete@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
+          Contact.aclRemove(permissions, {_id: leen._id}, function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(1);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.not.exist;
+              done();
+            });
+          });
+        });
+      });
+
+      it('should reject removes outside filter conditions', function (done) {
+        var permissions = {
+          'delete@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
+          Contact.aclRemove(permissions, {_id: leen._id}, function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(0);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              done();
+            });
+          });
+        });
+
+      });
+
+      it('should succeed removes within filter conditions; no callback', function (done) {
+        var permissions = {
+          'delete@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
+          Contact.aclRemove(permissions, {_id: leen._id}).exec(function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(1);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.not.exist;
+              done();
+            });
+          });
+        });
+      });
+
+      it('should reject removes outside filter conditions; no callback', function (done) {
+        var permissions = {
+          'delete@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
+          Contact.aclRemove(permissions, {_id: leen._id}).exec(function (err, cnt) {
+            expect(err).to.not.exist;
+            expect(cnt).to.equal(0);
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              done();
+            });
+          });
+        });
+
+      });
+    });
+
+    describe('model.aclSave', function () {
+      describe('create', function () {
+        it('should insert presets when none specified', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc'
+                }
+              }
+            ]
+          };
+          new Contact({name: 'leen'}).aclSave(permissions, function (err, contact) {
+            expect(err).to.not.exist;
+            expect(contact).to.exist;
+            expect(contact).to.have.property('club', 'exc');
+            done();
+          });
+        });
+
+        it('should allow presets when matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc'
+                }
+              }
+            ]
+          };
+          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err, contact) {
+            expect(err).to.not.exist;
+            expect(contact).to.exist;
+            expect(contact).to.have.property('club', 'exc');
+            done();
+          });
+        });
+
+        it('should allow presets when some set is matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'exc'
+                }
+              },
+              {
+                presets: {
+                  club: 'dkc'
+                }
+              }
+            ]
+          };
+          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err, contact) {
+            expect(err).to.not.exist;
+            expect(contact).to.exist;
+            expect(contact).to.have.property('club', 'exc');
+            done();
+          });
+        });
+
+        it('should deny when presets not matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'dkc'
+                }
+              }
+            ]
+          };
+          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err, contact) {
+            expect(err).to.exist;
+            expect(err).to.have.property('message', 'not authorized');
+            done();
+          });
+        });
+
+        it('should deny when all presets not matching', function (done) {
+          var permissions = {
+            'create@Contact': [
+              {
+                presets: {
+                  club: 'dkc'
+                }
+              },
+              {
+                presets: {
+                  club: 'des'
+                }
+              }
+            ]
+          };
+          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err, contact) {
+            expect(err).to.exist;
+            expect(err).to.have.property('message', 'not authorized');
+            done();
+          });
+        });
+
+        describe('sub documents', function () {
+          it('should insert presets when none specified', function (done) {
+            var permissions = {
+              'create@Contact': [
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Delft'}
+                  }
+                }
+              ]
+            };
+            new Contact({name: 'leen'}).aclSave(permissions, function (err, contact) {
+              expect(err).to.not.exist;
+              expect(contact).to.exist;
+              expect(contact).to.have.property('club', 'exc');
+              expect(contact).to.have.property('adres');
+              expect(contact.adres).to.have.property('plaats', 'Delft');
+              done();
+            });
+          });
+
+          it('should allow presets when matching', function (done) {
+            var permissions = {
+              'create@Contact': [
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Delft'}
+                  }
+                }
+              ]
+            };
+            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Delft'}}).aclSave(permissions, function (err, contact) {
+              expect(err).to.not.exist;
+              expect(contact).to.exist;
+              expect(contact).to.have.property('club', 'exc');
+              expect(contact).to.have.property('adres');
+              expect(contact.adres).to.have.property('plaats', 'Delft');
+              done();
+            });
+          });
+
+          it('should allow presets when some set is matching', function (done) {
+            var permissions = {
+              'create@Contact': [
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Delft'}
+                  }
+                },
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Den Hoorn'}
+                  }
+                }
+              ]
+            };
+            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Delft'}}).aclSave(permissions, function (err, contact) {
+              expect(err).to.not.exist;
+              expect(contact).to.exist;
+              expect(contact).to.have.property('club', 'exc');
+              expect(contact).to.have.property('adres');
+              expect(contact.adres).to.have.property('plaats', 'Delft');
+              done();
+            });
+          });
+
+          it('should deny when presets not matching', function (done) {
+            var permissions = {
+              'create@Contact': [
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Delft'}
+                  }
+                }
+              ]
+            };
+            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}).aclSave(permissions, function (err, contact) {
+              expect(err).to.exist;
+              expect(err).to.have.property('message', 'not authorized');
+              done();
+            });
+          });
+
+          it('should deny when all presets not matching', function (done) {
+            var permissions = {
+              'create@Contact': [
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Delft'}
+                  }
+                },
+                {
+                  presets: {
+                    club: 'exc',
+                    adres: { plaats: 'Den Hoorn'}
+                  }
+                }
+              ]
+            };
+            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}).aclSave(permissions, function (err, contact) {
+              expect(err).to.exist;
+              expect(err).to.have.property('message', 'not authorized');
+              done();
+            });
+          });
+        });
+      });
+
+      describe('update', function () {
+        it('should succeed if updates within filter conditions', function (done) {
+          var permissions = {
+            'update@Contact': [
+              {
+                conditions: {
+                  club: 'exc',
+                  'adres.plaats': 'Delft'
+                }
+              }
+            ]
+          };
+
+          Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
+            leen.adres.postcode = '2612VG';
+            leen.aclSave(permissions, function (err, leen, cnt) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              expect(leen).to.have.property('adres');
+              expect(leen.adres).to.have.property('postcode', '2612VG');
+              Contact.findById(leen.id, function (err, leen) {
+                expect(err).to.not.exist;
+                expect(leen).to.exist;
+                expect(leen).to.have.property('adres');
+                expect(leen.adres).to.have.property('postcode', '2612VG');
+                done();
+              });
+            });
+          });
+        });
+
+        it('should reject if updates outside filter conditions', function (done) {
+          var permissions = {
+            'update@Contact': [
+              {
+                conditions: {
+                  club: 'exc',
+                  'adres.plaats': 'Delft'
+                }
+              }
+            ]
+          };
+
+          Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
+            leen.adres.postcode = '2612VG';
+            leen.aclSave(permissions, function (err, savedLeen, cnt) {
+              expect(err).to.exist;
+              expect(err).to.have.property('message', 'not authorized');
+              Contact.findById(leen.id, function (err, leen) {
+                expect(err).to.not.exist;
+                expect(leen).to.exist;
+                expect(leen).to.have.property('adres');
+                expect(leen.adres).not.to.have.property('postcode');
+                done();
+              });
+            });
+          });
+
+        });
+      });
+    });
+
+    describe('model.aclRemove', function () {
+      it('should succeed remove within filter conditions', function (done) {
+        var permissions = {
+          'delete@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
+          leen.aclRemove(permissions, function (err, leen) {
+            expect(err).to.not.exist;
+            expect(leen).to.exist;
+            expect(leen).to.have.property('adres');
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.not.exist;
+              done();
+            });
+          });
+        });
+      });
+
+      it('should reject remove outside filter conditions', function (done) {
+        var permissions = {
+          'delete@Contact': [
+            {
+              conditions: {
+                club: 'exc',
+                'adres.plaats': 'Delft'
+              }
+            }
+          ]
+        };
+
+        Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
+          leen.aclRemove(permissions, function (err) {
+            expect(err).to.exist;
+            expect(err).to.have.property('message', 'not authorized');
+            Contact.findById(leen.id, function (err, leen) {
+              expect(err).to.not.exist;
+              expect(leen).to.exist;
+              expect(leen).to.have.property('adres');
+              expect(leen.adres).not.to.have.property('postcode');
+              done();
+            });
+          });
+        });
+
+      });
+    });
+
+  });
 });
 
 

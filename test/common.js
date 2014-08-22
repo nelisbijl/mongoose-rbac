@@ -24,6 +24,7 @@ function empty(callback) {
   User.remove({});
   Role.remove({});
   Permission.remove({});
+  Contact.remove({});
   callback();
 }
 
@@ -109,7 +110,16 @@ UserSchema = mongoose.Schema({ username: String });
 UserSchema.plugin(rbac.plugin);
 User = mongoose.model('User', UserSchema);
 
-ContactSchema = mongoose.Schema({ name: String, club: String }),
+ContactSchema = mongoose.Schema({
+  name: {type: String, unique: true },
+  club: String,
+  adres: {
+    straat: String,
+    postcode: String,
+    plaats: String
+  }
+});
+ContactSchema.plugin(rbac.aclPlugin);
 Contact = mongoose.model('Contact', ContactSchema);
 
 module.exports.User = User;
