@@ -1,6 +1,7 @@
 /* global describe,it,before,beforeEach,afterEach */
 
 var chai = require('chai')
+  , mongoose = require('mongoose')
   , expect = chai.expect
   , rbac = require('../')
   , common = require('./common')
@@ -777,6 +778,36 @@ describe('roles and permissions:', function () {
         });
       });
 
+      it('should allow settings containing ObjectId', function (done) {
+        henry.addPermission('read@Post', { conditions: { _id: henry._id } }, function (err, obj) {
+          expect(err).to.not.exist;
+          expect(henry).to.have.property('permissions').with.length(1);
+          expect(obj.permissions[0]).to.have.property('settings');
+          expect(obj.permissions[0].settings).to.have.property('conditions');
+          expect(obj.permissions[0].settings.conditions).to.have.property('_id');
+          Permission.findOne({ name: 'read@Post' }, function (err, permission) {
+            expect(err).to.not.exist;
+            expect(henry.permissions[0].permission.equals(permission._id)).to.be.ok;
+            User.findById(henry.id, function (err, user) {
+              expect(err).to.not.exist;
+              expect(user).to.exist;
+              expect(user).to.have.property('permissions').with.length(1);
+              expect(user.permissions[0]).to.have.property('settings');
+              expect(user.permissions[0].settings).to.have.property('conditions');
+              expect(user.permissions[0].settings.conditions).to.have.property('_id');
+
+              User.find(user.permissions[0].settings.conditions, function (err, lookupUser) {
+                expect(err).to.not.exist;
+                expect(lookupUser).to.exist.with.length(1);
+                expect(lookupUser[0]._id.equals(henry._id)).to.be.true;
+                done();
+              });
+
+            });
+          });
+        });
+      });
+
       it('should allow multiple permissions with same name and different settings', function (done) {
         henry.addPermission('read@Post', { a: 'A' }, function (err, obj) {
           expect(err).to.not.exist;
@@ -1024,7 +1055,7 @@ describe('roles and permissions:', function () {
         });
       });
 
-      it('should merge permission decorationss', function (next) {
+      it('should merge permission decorations', function (next) {
         henry.addRole('readonly', function (err) {
           expect(err).to.not.exist;
           henry.addRole('guest', function (err) {
@@ -1198,7 +1229,7 @@ describe('roles and permissions:', function () {
         { name: 'des2', club: 'des' },
         { name: 'dkc1', club: 'dkc' },
         { name: 'dkc2', club: 'dkc' }
-      ], function (err, contacts) {
+      ], function () {
         done();
       })
 
@@ -1280,7 +1311,7 @@ describe('roles and permissions:', function () {
             }
           ]
         };
-        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err, contact) {
+        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err) {
           expect(err).to.exist;
           expect(err).to.have.property('message', 'not authorized');
           done();
@@ -1302,7 +1333,7 @@ describe('roles and permissions:', function () {
             }
           ]
         };
-        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err, contact) {
+        Contact.aclCreate(permissions, {name: 'leen', club: 'exc'}, function (err) {
           expect(err).to.exist;
           expect(err).to.have.property('message', 'not authorized');
           done();
@@ -1323,7 +1354,7 @@ describe('roles and permissions:', function () {
         Contact.aclCreate(permissions, [
           {name: 'leen', club: 'exc'},
           piet
-        ], function (err, contact) {
+        ], function (err) {
           expect(err).to.exist;
           expect(err).to.have.property('message', 'not authorized');
           Contact.findOne(piet, function (err, piet) {
@@ -1426,7 +1457,7 @@ describe('roles and permissions:', function () {
               }
             ]
           };
-          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}, function (err, contact) {
+          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}, function (err) {
             expect(err).to.exist;
             expect(err).to.have.property('message', 'not authorized');
             done();
@@ -1454,7 +1485,7 @@ describe('roles and permissions:', function () {
               }
             ]
           };
-          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: { plaats: 'Rijswijk'}}, function (err, contact) {
+          Contact.aclCreate(permissions, {name: 'leen', club: 'exc', adres: { plaats: 'Rijswijk'}}, function (err) {
             expect(err).to.exist;
             expect(err).to.have.property('message', 'not authorized');
             done();
@@ -1478,7 +1509,7 @@ describe('roles and permissions:', function () {
           Contact.aclCreate(permissions, [
             {name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'} },
             piet
-          ], function (err, contact) {
+          ], function (err) {
             expect(err).to.exist;
             expect(err).to.have.property('message', 'not authorized');
             Contact.findOne(piet, function (err, piet) {
@@ -1929,7 +1960,7 @@ describe('roles and permissions:', function () {
               }
             ]
           };
-          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err, contact) {
+          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err) {
             expect(err).to.exist;
             expect(err).to.have.property('message', 'not authorized');
             done();
@@ -1951,7 +1982,7 @@ describe('roles and permissions:', function () {
               }
             ]
           };
-          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err, contact) {
+          new Contact({name: 'leen', club: 'exc'}).aclSave(permissions, function (err) {
             expect(err).to.exist;
             expect(err).to.have.property('message', 'not authorized');
             done();
@@ -2039,7 +2070,7 @@ describe('roles and permissions:', function () {
                 }
               ]
             };
-            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}).aclSave(permissions, function (err, contact) {
+            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}).aclSave(permissions, function (err) {
               expect(err).to.exist;
               expect(err).to.have.property('message', 'not authorized');
               done();
@@ -2063,7 +2094,7 @@ describe('roles and permissions:', function () {
                 }
               ]
             };
-            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}).aclSave(permissions, function (err, contact) {
+            new Contact({name: 'leen', club: 'exc', adres: {plaats: 'Rijswijk'}}).aclSave(permissions, function (err) {
               expect(err).to.exist;
               expect(err).to.have.property('message', 'not authorized');
               done();
@@ -2087,7 +2118,7 @@ describe('roles and permissions:', function () {
 
           Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Delft'}}, function (err, leen) {
             leen.adres.postcode = '2612VG';
-            leen.aclSave(permissions, function (err, leen, cnt) {
+            leen.aclSave(permissions, function (err, leen) {
               expect(err).to.not.exist;
               expect(leen).to.exist;
               expect(leen).to.have.property('adres');
@@ -2117,7 +2148,7 @@ describe('roles and permissions:', function () {
 
           Contact.create({name: 'leen', club: 'exc', adres: {straat: 'Dorpsweg', plaats: 'Den Hoorn'}}, function (err, leen) {
             leen.adres.postcode = '2612VG';
-            leen.aclSave(permissions, function (err, savedLeen, cnt) {
+            leen.aclSave(permissions, function (err) {
               expect(err).to.exist;
               expect(err).to.have.property('message', 'not authorized');
               Contact.findById(leen.id, function (err, leen) {

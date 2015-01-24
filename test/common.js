@@ -30,7 +30,9 @@ function empty(callback) {
 
 function reset(callback) {
   for (var name in mongoose.connection.collections) {
-    mongoose.connection.collections[name].drop();
+    if (mongoose.connection.collections.hasOwnProperty(name)) {
+      mongoose.connection.collections[name].drop();
+    }
   }
   callback();
 }
